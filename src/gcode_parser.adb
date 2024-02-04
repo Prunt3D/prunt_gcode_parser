@@ -21,8 +21,6 @@ package body Gcode_Parser is
    end record;
 
    type Parameters_Index is new Character range 'A' .. 'Z';
-   subtype Valid_Parameters_Index is Character with
-       Static_Predicate => Valid_Parameters_Index in 'G' | 'E' | 'F' | 'X' | 'Y' | 'Z';
    type Parameters_Array is array (Parameters_Index) of Parameter;
 
    function Make_Context (Initial_Position : Position; Initial_Feedrate : Velocity) return Context is
@@ -180,31 +178,50 @@ package body Gcode_Parser is
          end case;
       end Integer_Or_Error;
 
-   begin
-      loop
-         exit when Line (I) = ';';
-
-         if Line (I) /= ' ' then
-            declare
-               Char : constant Character := To_Upper (Line (I));
-            begin
-               if Char not in Valid_Parameters_Index then
-                  if Is_Control (Char) or Character'Pos (Char) > 127 then
-                     raise Bad_Line with "Expected parameter letter, got unprintable character.";
-                  else
-                     raise Bad_Line with "Expected parameter letter, got '" & Line (I) & "'.";
-                  end if;
-               elsif Params (Parameters_Index (Char)).Kind /= Non_Existant_Kind then
-                  raise Bad_Line with "Parameter letter '" & Char & "' encountered more than once on line.";
-               else
-                  Parse_Number (Parameters_Index (Char));
-               end if;
-            end;
+      function No_Value_Or_False_Or_Error (Param : Parameters_Index) return Boolean is
+      begin
+         if Params (Param).Consumed then
+            raise Program_Error with "Parameter '" & Character (Param) & "' already consumed.";
          end if;
+         Params (Param).Consumed := True;
 
-         exit when I = Line'Last;
-         I := I + 1;
-      end loop;
+         case Params (Param).Kind is
+            when No_Value_Kind =>
+               return True;
+            when Non_Existant_Kind =>
+               return False;
+            when Integer_Kind | Float_Kind =>
+               raise Bad_Line with "Parameter '" & Character (Param) & "' not allowed to have a value here.";
+         end case;
+      end No_Value_Or_False_Or_Error;
+
+   begin
+      if Line'Length /= 0 then
+         loop
+            exit when Line (I) = ';';
+
+            if Line (I) /= ' ' then
+               declare
+                  Char : constant Character := To_Upper (Line (I));
+               begin
+                  if Parameters_Index'Base (Char) not in Parameters_Index then
+                     if Is_Control (Char) or Character'Pos (Char) > 127 then
+                        raise Bad_Line with "Expected parameter letter, got unprintable character.";
+                     else
+                        raise Bad_Line with "Expected parameter letter, got '" & Line (I) & "'.";
+                     end if;
+                  elsif Params (Parameters_Index (Char)).Kind /= Non_Existant_Kind then
+                     raise Bad_Line with "Parameter letter '" & Char & "' encountered more than once on line.";
+                  else
+                     Parse_Number (Parameters_Index (Char));
+                  end if;
+               end;
+            end if;
+
+            exit when I = Line'Last;
+            I := I + 1;
+         end loop;
+      end if;
 
       if Params ('G').Kind /= Non_Existant_Kind and Params ('M').Kind /= Non_Existant_Kind then
          raise Bad_Line with "Only one G or M parameter allowed per line.";
@@ -232,9 +249,79 @@ package body Gcode_Parser is
                   Comm.Pos (E_Axis) := Floatify_Or_Default ('E', Ctx.Pos (E_Axis) / mm) * mm;
                end if;
                Comm.Feedrate := Floatify_Or_Default ('F', Ctx.Feedrate / (mm / min)) * mm / min;
+            when 4 =>
+               Comm := (Kind => Dwell_Kind, Dwell_Time => Floatify_Or_Error ('S') * s);
+            when 21 =>
+               null;
+            when 28 =>
+               Comm :=
+                 (Kind => Home_Kind,
+                  Axes =>
+                    [E_Axis => False,
+                    X_Axis  => No_Value_Or_False_Or_Error ('X'),
+                    Y_Axis  => No_Value_Or_False_Or_Error ('Y'),
+                    Z_Axis  => No_Value_Or_False_Or_Error ('Z')]);
+            when 90 =>
+               Ctx.Relative_Mode := False;
+            when 91 =>
+               Ctx.Relative_Mode := True;
+            when 92 =>
+               Comm :=
+                 (Kind    => Reset_Position_Kind,
+                  New_Pos => (Ctx.Pos with delta E_Axis => Floatify_Or_Error ('E')));
             when others =>
                raise Bad_Line with "Unknown G code: " & Params ('G').Integer_Value'Image;
          end case;
+      elsif Params ('M').Kind /= Non_Existant_Kind then
+         Params ('M').Consumed := True;
+
+         if Params ('M').Kind /= Integer_Kind then
+            raise Bad_Line with "Bad M parameter format: " & Params ('M')'Image;
+         end if;
+
+         case Params ('M').Integer_Value is
+            when 0 | 1 =>
+               Comm := (Kind => Pause_Kind);
+            when 17 =>
+               Comm :=
+                 (Kind => Enable_Steppers_Kind,
+                  Axes =>
+                    [E_Axis => No_Value_Or_False_Or_Error ('E'),
+                    X_Axis  => No_Value_Or_False_Or_Error ('X'),
+                    Y_Axis  => No_Value_Or_False_Or_Error ('Y'),
+                    Z_Axis  => No_Value_Or_False_Or_Error ('Z')]);
+            when 18 | 84 =>
+               Comm :=
+                 (Kind => Disable_Steppers_Kind,
+                  Axes =>
+                    [E_Axis => No_Value_Or_False_Or_Error ('E'),
+                    X_Axis  => No_Value_Or_False_Or_Error ('X'),
+                    Y_Axis  => No_Value_Or_False_Or_Error ('Y'),
+                    Z_Axis  => No_Value_Or_False_Or_Error ('Z')]);
+            when 104 =>
+               Comm := (Kind => Set_Hotend_Temperature_Kind, Target_Temperature => Floatify_Or_Error ('S') * celcius);
+            when 106 =>
+               Comm :=
+                 (Kind      => Set_Fan_Speed_Kind,
+                  Fan_Speed => Dimensionless'Min (1.0, Dimensionless'Max (0.0, Floatify_Or_Error ('S') / 255.0)));
+            when 107 =>
+               Comm := (Kind => Set_Fan_Speed_Kind, Fan_Speed => 0.0);
+            when 109 =>
+               Comm := (Kind => Wait_Hotend_Temperature_Kind, Target_Temperature => Floatify_Or_Error ('S') * celcius);
+            when 140 =>
+               Comm := (Kind => Set_Bed_Temperature_Kind, Target_Temperature => Floatify_Or_Error ('S') * celcius);
+            when 141 =>
+               Comm := (Kind => Set_Chamber_Temperature_Kind, Target_Temperature => Floatify_Or_Error ('S') * celcius);
+            when 190 =>
+               Comm := (Kind => Wait_Bed_Temperature_Kind, Target_Temperature => Floatify_Or_Error ('S') * celcius);
+            when 191 =>
+               Comm :=
+                 (Kind => Wait_Chamber_Temperature_Kind, Target_Temperature => Floatify_Or_Error ('S') * celcius);
+            when others =>
+               raise Bad_Line with "Unknown M code: " & Params ('M').Integer_Value'Image;
+         end case;
+      else
+         Comm := (Kind => None_Kind);
       end if;
 
       for I in Params'Range loop
@@ -244,9 +331,13 @@ package body Gcode_Parser is
       end loop;
 
       if Comm.Kind = Move_Kind then
-         Ctx.Pos      := Comm.Pos;
-         Ctx.Feedrate := Comm.Feedrate;
+         Ctx.Pos := Comm.Pos;
+
+         if Params ('G').Kind = Integer_Kind and then Params ('G').Integer_Value in 0 .. 1 then
+            Ctx.Feedrate := Comm.Feedrate;
+         end if;
       end if;
+
    end Parse_Line;
 
    procedure Reset_Position (Ctx : in out Context; Pos : Position) is

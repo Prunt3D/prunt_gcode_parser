@@ -4,7 +4,9 @@ package Gcode_Parser is
 
    type Command_Kind is
      (None_Kind,
+      Pause_Kind,
       Move_Kind,
+      Reset_Position_Kind,
       Dwell_Kind,
       Home_Kind,
       Enable_Steppers_Kind,
@@ -13,17 +15,21 @@ package Gcode_Parser is
       Wait_Hotend_Temperature_Kind,
       Set_Bed_Temperature_Kind,
       Wait_Bed_Temperature_Kind,
+      Set_Chamber_Temperature_Kind,
+      Wait_Chamber_Temperature_Kind,
       Set_Fan_Speed_Kind);
 
    type Axes_Set is array (Axis_Name) of Boolean;
 
    type Command (Kind : Command_Kind := None_Kind) is record
       case Kind is
-         when None_Kind =>
+         when None_Kind | Pause_Kind =>
             null;
          when Move_Kind =>
             Pos      : Position;
             Feedrate : Velocity;
+         when Reset_Position_Kind =>
+            New_Pos  : Position;
          when Dwell_Kind =>
             Dwell_Time : Time;
          when Home_Kind | Enable_Steppers_Kind | Disable_Steppers_Kind =>
@@ -31,10 +37,12 @@ package Gcode_Parser is
          when Set_Hotend_Temperature_Kind
            | Wait_Hotend_Temperature_Kind
            | Set_Bed_Temperature_Kind
-           | Wait_Bed_Temperature_Kind =>
+           | Wait_Bed_Temperature_Kind
+           | Set_Chamber_Temperature_Kind
+           | Wait_Chamber_Temperature_Kind =>
             Target_Temperature : Temperature;
          when Set_Fan_Speed_Kind =>
-            null;  --  TODO
+            Fan_Speed : Dimensionless;  --  Range 0.0 .. 1.0
       end case;
    end record;
 
