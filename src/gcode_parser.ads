@@ -29,7 +29,7 @@ package Gcode_Parser is
             Pos      : Position;
             Feedrate : Velocity;
          when Reset_Position_Kind =>
-            New_Pos  : Position;
+            New_Pos : Position;
          when Dwell_Kind =>
             Dwell_Time : Time;
          when Home_Kind | Enable_Steppers_Kind | Disable_Steppers_Kind =>

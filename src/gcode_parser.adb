@@ -200,7 +200,9 @@ package body Gcode_Parser is
          loop
             exit when Line (I) = ';';
 
-            if Line (I) /= ' ' then
+            if Line (I) = ' ' then
+               I := I + 1;
+            else
                declare
                   Char : constant Character := To_Upper (Line (I));
                begin
@@ -219,7 +221,6 @@ package body Gcode_Parser is
             end if;
 
             exit when I = Line'Last;
-            I := I + 1;
          end loop;
       end if;
 
