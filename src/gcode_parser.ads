@@ -42,7 +42,7 @@ package Gcode_Parser is
            | Wait_Chamber_Temperature_Kind =>
             Target_Temperature : Temperature;
          when Set_Fan_Speed_Kind =>
-            Fan_Speed : Dimensionless;  --  Range 0.0 .. 1.0
+            Fan_Speed : PWM_Scale;
       end case;
    end record;
 
