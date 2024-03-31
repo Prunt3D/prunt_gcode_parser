@@ -26,6 +26,7 @@ package Gcode_Parser is
          when None_Kind | Pause_Kind =>
             null;
          when Move_Kind =>
+            Old_Pos  : Position;
             Pos      : Position;
             Feedrate : Velocity;
          when Reset_Position_Kind =>

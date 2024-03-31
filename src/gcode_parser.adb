@@ -332,7 +332,8 @@ package body Gcode_Parser is
       end loop;
 
       if Comm.Kind = Move_Kind then
-         Ctx.Pos := Comm.Pos;
+         Comm.Old_Pos := Ctx.Pos;
+         Ctx.Pos      := Comm.Pos;
 
          if Params ('G').Kind = Integer_Kind and then Params ('G').Integer_Value in 0 .. 1 then
             Ctx.Feedrate := Comm.Feedrate;
