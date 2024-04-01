@@ -256,12 +256,13 @@ package body Gcode_Parser is
                null;
             when 28 =>
                Comm :=
-                 (Kind => Home_Kind,
-                  Axes =>
+                 (Kind       => Home_Kind,
+                  Axes       =>
                     [E_Axis => False,
                     X_Axis  => No_Value_Or_False_Or_Error ('X'),
                     Y_Axis  => No_Value_Or_False_Or_Error ('Y'),
-                    Z_Axis  => No_Value_Or_False_Or_Error ('Z')]);
+                    Z_Axis  => No_Value_Or_False_Or_Error ('Z')],
+                  Pos_Before => Ctx.Pos);
             when 90 =>
                Ctx.Relative_Mode := False;
             when 91 =>

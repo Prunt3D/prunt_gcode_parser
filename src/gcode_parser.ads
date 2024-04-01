@@ -35,6 +35,12 @@ package Gcode_Parser is
             Dwell_Time : Time;
          when Home_Kind | Enable_Steppers_Kind | Disable_Steppers_Kind =>
             Axes : Axes_Set;
+            case Kind is
+               when Home_Kind =>
+                  Pos_Before : Position;
+               when others =>
+                  null;
+            end case;
          when Set_Hotend_Temperature_Kind
            | Wait_Hotend_Temperature_Kind
            | Set_Bed_Temperature_Kind
