@@ -258,7 +258,7 @@ package body Gcode_Parser is
                Comm :=
                  (Kind       => Home_Kind,
                   Axes       =>
-                    [E_Axis => False,
+                    [E_Axis => No_Value_Or_False_Or_Error ('E'),
                     X_Axis  => No_Value_Or_False_Or_Error ('X'),
                     Y_Axis  => No_Value_Or_False_Or_Error ('Y'),
                     Z_Axis  => No_Value_Or_False_Or_Error ('Z')],
