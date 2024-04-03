@@ -40,53 +40,49 @@ package body Gcode_Parser is
       begin
          Params (Param) := (Kind => No_Value_Kind, Consumed => False);
 
-         if I /= Line'Last then
-            loop
-               I := I + 1;
-               exit when Line (I) /= '.' and Line (I) /= '-' and not Is_Decimal_Digit (Line (I));
+         loop
+            I := I + 1;
+            exit when I = Line'Last + 1 or else (Line (I) /= '.' and Line (I) /= '-' and not Is_Decimal_Digit (Line (I)));
 
-               if Params (Param).Kind = No_Value_Kind then
-                  Params (Param) := (Kind => Integer_Kind, Integer_Value => 0, Consumed => False);
-               elsif Params (Param).Kind = Integer_Kind
-                 and then (Params (Param).Integer_Value >= 100 or Line (I) = '.')
-               then
-                  Params (Param) :=
-                    (Kind        => Float_Kind,
-                     Float_Value => Dimensionless (Params (Param).Integer_Value),
-                     Consumed    => False);
+            if Params (Param).Kind = No_Value_Kind then
+               Params (Param) := (Kind => Integer_Kind, Integer_Value => 0, Consumed => False);
+            elsif Params (Param).Kind = Integer_Kind
+               and then (Params (Param).Integer_Value >= 100 or Line (I) = '.')
+            then
+               Params (Param) :=
+                  (Kind        => Float_Kind,
+                  Float_Value => Dimensionless (Params (Param).Integer_Value),
+                  Consumed    => False);
+            end if;
+
+            if Line (I) = '-' then
+               if not Is_First_Char then
+                  raise Bad_Line with "'-' only allowed as first character in number.";
                end if;
-
-               if Line (I) = '-' then
-                  if not Is_First_Char then
-                     raise Bad_Line with "'-' only allowed as first character in number.";
-                  end if;
-                  Is_Negative := True;
-               elsif Line (I) = '.' then
-                  if In_Decimal_Part then
-                     raise Bad_Line with "Multiple decimal points in number.";
-                  end if;
-                  In_Decimal_Part := True;
+               Is_Negative := True;
+            elsif Line (I) = '.' then
+               if In_Decimal_Part then
+                  raise Bad_Line with "Multiple decimal points in number.";
+               end if;
+               In_Decimal_Part := True;
+            else
+               if Params (Param).Kind = Integer_Kind then
+                  Params (Param).Integer_Value :=
+                     @ * 10 + Parameter_Integer (Character'Pos (Line (I)) - Character'Pos ('0'));
                else
-                  if Params (Param).Kind = Integer_Kind then
-                     Params (Param).Integer_Value :=
-                       @ * 10 + Parameter_Integer (Character'Pos (Line (I)) - Character'Pos ('0'));
+                  if In_Decimal_Part then
+                     Decimal_Digits             := @ + 1;
+                     Params (Param).Float_Value :=
+                        @ + Dimensionless (Character'Pos (Line (I)) - Character'Pos ('0')) / 10.0**Decimal_Digits;
                   else
-                     if In_Decimal_Part then
-                        Decimal_Digits             := @ + 1;
-                        Params (Param).Float_Value :=
-                          @ + Dimensionless (Character'Pos (Line (I)) - Character'Pos ('0')) / 10.0**Decimal_Digits;
-                     else
-                        Params (Param).Float_Value :=
-                          @ * 10.0 + Dimensionless (Character'Pos (Line (I)) - Character'Pos ('0'));
-                     end if;
+                     Params (Param).Float_Value :=
+                        @ * 10.0 + Dimensionless (Character'Pos (Line (I)) - Character'Pos ('0'));
                   end if;
                end if;
+            end if;
 
-               Is_First_Char := False;
-
-               exit when I = Line'Last;
-            end loop;
-         end if;
+            Is_First_Char := False;
+         end loop;
 
          if Is_Negative then
             if Params (Param).Kind = No_Value_Kind then
@@ -220,7 +216,7 @@ package body Gcode_Parser is
                end;
             end if;
 
-            exit when I = Line'Last;
+            exit when I = Line'Last + 1;
          end loop;
       end if;
 
@@ -253,7 +249,7 @@ package body Gcode_Parser is
             when 4 =>
                Comm := (Kind => Dwell_Kind, Dwell_Time => Floatify_Or_Error ('S') * s);
             when 21 =>
-               null;
+               Comm := (Kind => None_Kind);
             when 28 =>
                Comm :=
                  (Kind       => Home_Kind,
@@ -265,8 +261,10 @@ package body Gcode_Parser is
                   Pos_Before => Ctx.Pos);
             when 90 =>
                Ctx.Relative_Mode := False;
+               Comm := (Kind => None_Kind);
             when 91 =>
                Ctx.Relative_Mode := True;
+               Comm := (Kind => None_Kind);
             when 92 =>
                Comm :=
                  (Kind    => Reset_Position_Kind,
