@@ -46,7 +46,9 @@ package body Gcode_Parser is
 
             if Params (Param).Kind = No_Value_Kind then
                Params (Param) := (Kind => Integer_Kind, Integer_Value => 0, Consumed => False);
-            elsif Params (Param).Kind = Integer_Kind
+            end if;
+
+            if Params (Param).Kind = Integer_Kind
                and then (Params (Param).Integer_Value >= 100 or Line (I) = '.')
             then
                Params (Param) :=
